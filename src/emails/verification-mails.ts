@@ -29,7 +29,7 @@ const KIND_LABEL: Record<VerifyKind, Record<MailLang, string>> = {
   influencer: { nl: "Creator-badge", en: "Creator badge" },
   business: { nl: "Bedrijfsmerk", en: "Business mark" },
 };
-const tone = (k: VerifyKind) => (k === "influencer" ? "creator" : "business") as const;
+const tone = (k: VerifyKind): "creator" | "business" => (k === "influencer" ? "creator" : "business");
 
 export function receivedMail(o: { lang: MailLang; kind: VerifyKind; name: string; dashboardUrl: string }): Rendered {
   const nl = o.lang === "nl";
