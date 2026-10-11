@@ -89,6 +89,7 @@ export async function sendTransactionalEmail(opts: {
   params?: Record<string, unknown>;
   tags?: string[];
   attachments?: { name: string; contentBase64: string }[];
+  htmlFirst?: boolean;
 }): Promise<boolean> {
   const { sendMail } = await import("@/emails/send.server");
   const result = await sendMail({
@@ -100,6 +101,7 @@ export async function sendTransactionalEmail(opts: {
     ...(opts.params ? { params: opts.params } : {}),
     ...(opts.tags ? { tags: opts.tags } : {}),
     ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
+    ...(opts.htmlFirst ? { htmlFirst: true } : {}),
   });
   return result.sent;
 }
@@ -179,7 +181,8 @@ export async function notifyUser(
       await sendTransactionalEmail({
         to: email,
         subject: copy.subject,
-        html: renderNotificationEmail(copy, dashboardUrl),
+        html: renderNotificationEmail(copy, dashboardUrl, locale),
+        htmlFirst: true,
         category,
         language: locale,
         params: {
