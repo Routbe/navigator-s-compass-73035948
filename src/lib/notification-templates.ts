@@ -6,6 +6,8 @@
  * reads two different stories about the same payment.
  */
 
+import { actions, button, heading, layout, paragraph } from "@/emails/kit";
+
 export type NotificationLocale = "nl" | "en" | "fr" | "de";
 
 export const NOTIFICATION_LOCALES: NotificationLocale[] = ["nl", "en", "fr", "de"];
@@ -461,24 +463,12 @@ export const NOTIFICATION_EMAIL_CATEGORY: Record<
 };
 
 /** Shared ROUT e-mail shell — inline styles only, white body, no external CSS. */
-export function renderNotificationEmail(copy: Copy, dashboardUrl: string): string {
-  return `<!doctype html>
-<html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /></head>
-<body style="margin:0;background:#ffffff;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#0f172a">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff">
-    <tr><td align="center" style="padding:32px 16px">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;text-align:left">
-        <tr><td style="padding-bottom:20px;font:600 18px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em">ROUT</td></tr>
-        <tr><td style="padding-bottom:8px;font-size:20px;font-weight:600">${escapeHtml(copy.title)}</td></tr>
-        <tr><td style="padding-bottom:24px;font-size:15px;line-height:1.6;color:#334155">${escapeHtml(copy.body)}</td></tr>
-        <tr><td style="padding-bottom:28px">
-          <a href="${escapeHtml(dashboardUrl)}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600">${escapeHtml(copy.cta)}</a>
-        </td></tr>
-        <tr><td style="border-top:1px solid #e2e8f0;padding-top:16px;font-size:12px;color:#64748b">rout.be — soevereine identiteit &amp; links</td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
+export function renderNotificationEmail(copy: Copy, dashboardUrl: string, lang = "nl"): string {
+  return layout({
+    lang,
+    preview: copy.body,
+    blocks: [heading(copy.title), paragraph(copy.body), actions(button(copy.cta, dashboardUrl))],
+  });
 }
 
 export function escapeHtml(value: string): string {
