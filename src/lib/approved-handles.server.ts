@@ -30,37 +30,10 @@ async function ensureTable() {
   ready = true;
 }
 
-async function emailOf(userId: string): Promise<string | null> {
-  const rows = (await sql`select email from public.users where id = ${userId} limit 1`) as Row[];
-  return (rows[0]?.["email"] as string | null) ?? null;
-}
-
-async function mailUser(userId: string, subject: string, body: string) {
-  try {
-    const to = await emailOf(userId);
-    if (!to) return;
-    const { sendTransactionalEmail } = await import("./notifications.server");
-    const ok = await sendTransactionalEmail({ to, subject, html: `<p>${body}</p>`, tags: ["verification"] });
-    if (!ok) console.info(`[verification-mail:mock] ${to} — ${subject}`);
-  } catch (e) {
-    console.info(`[verification-mail:mock] ${subject}`, e instanceof Error ? e.message : e);
-  }
-}
-
-/** Intake-mails: bevestiging naar de gebruiker + melding met ticketlink naar de beheerder. */
-export async function notifyIntake(userId: string, kind: "influencer" | "business", name: string, requestId: string) {
-  await mailUser(userId, "Aanvraag ontvangen", "We hebben je verificatieaanvraag ontvangen. Je krijgt bericht zodra we ze bekeken hebben.");
-  try {
-    const origin = process.env["PUBLIC_SITE_URL"] ?? process.env["PUBLIC_ORIGIN"] ?? "https://rout.be";
-    const { notifyAdmin } = await import("./notifications.server");
-    await notifyAdmin({
-      subject: `Nieuwe verificatie aanvraag van ${name}`,
-      message: `Type: ${kind}. Open het ticket: ${origin}/admin/verifications?request=${requestId}`,
-      tags: ["verification"],
-    });
-  } catch (e) {
-    console.info("[verification-mail:mock] admin intake", e instanceof Error ? e.message : e);
-  }
+/** Intake-mails: bevestiging naar de aanvrager + beoordelingsmail met knoppen naar de beheerder. */
+export async function notifyIntake(userId: string, kind: "influencer" | "business", _name: string, requestId: string) {
+  const { sendRequestReceived } = await import("./verification-mail.server");
+  await sendRequestReceived(userId, kind, requestId);
 }
 
 /** Keurt een selectie van de voorgestelde namen goed (whitelist). Lege selectie = afwijzen. */
@@ -106,13 +79,14 @@ export async function approveWithWhitelist(
     await sql`update public.business_verifications set status = 'approved', reviewed_at = now(),
       reviewed_by = ${adminId} where id = ${requestId}`;
   }
-  await mailUser(userId, "Je verificatie is goedgekeurd",
-    `Goedgekeurd. Kies je definitieve naam in je instellingen: ${list.join(", ")}.`);
+  const { sendDecision } = await import("./verification-mail.server");
+  await sendDecision(userId, kind, { approved: true, handle: null });
   return { ok: true as const, approved: list };
 }
 
-export async function notifyRejected(userId: string) {
-  await mailUser(userId, "Je verificatieaanvraag", "Je aanvraag werd helaas niet goedgekeurd. Antwoord op deze mail voor meer uitleg.");
+export async function notifyRejected(userId: string, kind: "influencer" | "business" = "influencer", reason: string | null = null) {
+  const { sendDecision } = await import("./verification-mail.server");
+  await sendDecision(userId, kind, { approved: false, reason });
 }
 
 export async function myApprovedHandles(userId: string): Promise<WhitelistEntry[]> {

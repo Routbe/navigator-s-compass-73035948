@@ -98,6 +98,18 @@ export const adminListInfluencerRequests = createServerFn({ method: "POST" })
     return listInfluencerRequests(data.status ?? "pending");
   });
 
+async function mailApproval(kind: "influencer" | "business", requestId: string, r: { ok: boolean; handle?: string | null }) {
+  if (!r.ok) return;
+  const { sql } = await import("./neon");
+  const rows = (kind === "business"
+    ? await sql`select user_id from public.business_verifications where id = ${requestId}`
+    : await sql`select user_id from public.influencer_requests where id = ${requestId}`) as Record<string, unknown>[];
+  const uid = rows[0]?.["user_id"];
+  if (typeof uid !== "string") return;
+  const { sendDecision } = await import("./verification-mail.server");
+  await sendDecision(uid, kind, { approved: true, handle: r.handle ?? null });
+}
+
 const reviewInput = z.object({
   requestId: z.string().uuid(),
   approve: z.boolean(),
@@ -115,7 +127,10 @@ export const adminReviewBusinessRequest = createServerFn({ method: "POST" })
       "./verification-requests.server"
     );
     return data.approve
-      ? approveBusinessRequest(data.requestId, context.userId)
+      ? approveBusinessRequest(data.requestId, context.userId).then(async (r) => {
+          await mailApproval("business", data.requestId, r);
+          return r;
+        })
       : rejectBusinessRequest(data.requestId, context.userId, data.note ?? null).then(async (r) => {
           const { sql } = await import("./neon");
           const table: string = "business_verifications";
@@ -125,7 +140,7 @@ export const adminReviewBusinessRequest = createServerFn({ method: "POST" })
           const uid = rows[0]?.["user_id"];
           if (typeof uid === "string") {
             const { notifyRejected } = await import("./approved-handles.server");
-            await notifyRejected(uid);
+            await notifyRejected(uid, "business", data.note ?? null);
           }
           return r;
         });
@@ -141,7 +156,10 @@ export const adminReviewInfluencerRequest = createServerFn({ method: "POST" })
       "./verification-requests.server"
     );
     return data.approve
-      ? approveInfluencerRequest(data.requestId, context.userId, data.handle ?? null)
+      ? approveInfluencerRequest(data.requestId, context.userId, data.handle ?? null).then(async (r) => {
+          await mailApproval("influencer", data.requestId, r);
+          return r;
+        })
       : rejectInfluencerRequest(data.requestId, context.userId, data.note ?? null).then(async (r) => {
           const { sql } = await import("./neon");
           const table: string = "influencer_requests";
@@ -151,7 +169,7 @@ export const adminReviewInfluencerRequest = createServerFn({ method: "POST" })
           const uid = rows[0]?.["user_id"];
           if (typeof uid === "string") {
             const { notifyRejected } = await import("./approved-handles.server");
-            await notifyRejected(uid);
+            await notifyRejected(uid, "influencer", data.note ?? null);
           }
           return r;
         });
